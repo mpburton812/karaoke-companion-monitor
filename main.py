@@ -44,7 +44,7 @@ class KaraokeMonitorApp(ctk.CTk):
         self.async_handler = AsyncHandler()
 
         # UI State
-        self.current_tab = "Dashboard"
+        self.current_tab = "Overview"
         
         # Grid layout (1x2)
         self.grid_columnconfigure(1, weight=1)
@@ -60,7 +60,7 @@ class KaraokeMonitorApp(ctk.CTk):
     def setup_sidebar(self):
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(4, weight=1)
+        self.sidebar_frame.grid_rowconfigure(3, weight=1)
 
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="KARAOKE\nMONITOR", font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
@@ -68,14 +68,11 @@ class KaraokeMonitorApp(ctk.CTk):
         self.db_status_label = ctk.CTkLabel(self.sidebar_frame, text="DB: Checking...", text_color="gray")
         self.db_status_label.grid(row=1, column=0, padx=20, pady=5)
 
-        self.sidebar_button_1 = ctk.CTkButton(self.sidebar_frame, text="Dashboard", command=lambda: self.select_frame("Dashboard"))
+        self.sidebar_button_1 = ctk.CTkButton(self.sidebar_frame, text="Overview", command=lambda: self.select_frame("Overview"))
         self.sidebar_button_1.grid(row=2, column=0, padx=20, pady=10)
 
-        self.sidebar_button_2 = ctk.CTkButton(self.sidebar_frame, text="User Stats", command=lambda: self.select_frame("User Stats"))
-        self.sidebar_button_2.grid(row=3, column=0, padx=20, pady=10)
-
         self.sidebar_button_3 = ctk.CTkButton(self.sidebar_frame, text="Logs", command=lambda: self.select_frame("Logs"))
-        self.sidebar_button_3.grid(row=4, column=0, padx=20, pady=10)
+        self.sidebar_button_3.grid(row=3, column=0, padx=20, pady=10)
 
         self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
         self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
@@ -85,46 +82,40 @@ class KaraokeMonitorApp(ctk.CTk):
         self.appearance_mode_optionemenu.set("Dark")
 
     def setup_main_frames(self):
-        # Dashboard Frame
-        self.dashboard_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.setup_dashboard_ui()
-
-        # User Stats Frame
-        self.user_stats_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.setup_user_stats_ui()
+        # Overview Frame (Combined Recent Perf + User Stats)
+        self.overview_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.setup_overview_ui()
 
         # Logs Frame
         self.logs_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.setup_logs_ui()
 
         # Default frame
-        self.select_frame("Dashboard")
+        self.select_frame("Overview")
 
-    def setup_dashboard_ui(self):
-        self.dashboard_frame.grid_columnconfigure(0, weight=1)
-        self.dashboard_frame.grid_rowconfigure(1, weight=1)
+    def setup_overview_ui(self):
+        self.overview_frame.grid_columnconfigure(0, weight=1)
+        self.overview_frame.grid_rowconfigure(1, weight=1) # Recent Perf section
+        self.overview_frame.grid_rowconfigure(3, weight=3) # User Stats section (takes more space)
 
-        # Recent Performances
-        self.recent_perf_label = ctk.CTkLabel(self.dashboard_frame, text="Recent Performances", font=ctk.CTkFont(size=16, weight="bold"))
-        self.recent_perf_label.grid(row=0, column=0, padx=20, pady=(20, 0), sticky="w")
+        # 1. Recent Performances Section
+        self.recent_perf_label = ctk.CTkLabel(self.overview_frame, text="Recent Performances", font=ctk.CTkFont(size=16, weight="bold"))
+        self.recent_perf_label.grid(row=0, column=0, padx=20, pady=(15, 0), sticky="w")
 
-        self.recent_perf_list = ctk.CTkTextbox(self.dashboard_frame)
-        self.recent_perf_list.grid(row=1, column=0, padx=20, pady=10, sticky="nsew")
+        self.recent_perf_list = ctk.CTkTextbox(self.overview_frame, height=150)
+        self.recent_perf_list.grid(row=1, column=0, padx=20, pady=(5, 10), sticky="nsew")
 
-    def setup_user_stats_ui(self):
-        self.user_stats_frame.grid_columnconfigure(0, weight=1)
-        self.user_stats_frame.grid_rowconfigure(1, weight=1)
+        # 2. User Statistics Section
+        self.user_stats_label = ctk.CTkLabel(self.overview_frame, text="User Statistics (Double-click for details)", font=ctk.CTkFont(size=16, weight="bold"))
+        self.user_stats_label.grid(row=2, column=0, padx=20, pady=(10, 0), sticky="w")
 
-        self.user_stats_title = ctk.CTkLabel(self.user_stats_frame, text="User Statistics", font=ctk.CTkFont(size=20, weight="bold"))
-        self.user_stats_title.grid(row=0, column=0, padx=20, pady=20, sticky="w")
-
-        # Use a standard tkinter Treeview for the table since ctk doesn't have one
+        # Use a standard tkinter Treeview for the table
         self.style = ttk.Style()
         self.style.theme_use("default")
         self.style.configure("Treeview", background="#2b2b2b", foreground="white", fieldbackground="#2b2b2b", borderwidth=0)
         self.style.map("Treeview", background=[('selected', '#1f538d')])
 
-        self.tree = ttk.Treeview(self.user_stats_frame, columns=("username", "created", "last_used", "uses", "songs", "venues", "tags"), show='headings')
+        self.tree = ttk.Treeview(self.overview_frame, columns=("username", "created", "last_used", "uses", "songs", "venues", "tags"), show='headings')
         self.tree.heading("username", text="Username")
         self.tree.heading("created", text="Created (Approx)")
         self.tree.heading("last_used", text="Last Used (Approx)")
@@ -138,7 +129,7 @@ class KaraokeMonitorApp(ctk.CTk):
         self.tree.column("venues", width=50)
         self.tree.column("tags", width=50)
 
-        self.tree.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
+        self.tree.grid(row=3, column=0, padx=20, pady=(5, 20), sticky="nsew")
         self.tree.bind("<Double-1>", self.on_user_click)
 
     def on_user_click(self, event):
@@ -242,20 +233,14 @@ class KaraokeMonitorApp(ctk.CTk):
     def select_frame(self, name):
         self.current_tab = name
         # Reset buttons
-        self.sidebar_button_1.configure(fg_color=("gray75", "gray25") if name != "Dashboard" else "#1f538d")
-        self.sidebar_button_2.configure(fg_color=("gray75", "gray25") if name != "User Stats" else "#1f538d")
+        self.sidebar_button_1.configure(fg_color=("gray75", "gray25") if name != "Overview" else "#1f538d")
         self.sidebar_button_3.configure(fg_color=("gray75", "gray25") if name != "Logs" else "#1f538d")
 
         # Show selected frame
-        if name == "Dashboard":
-            self.dashboard_frame.grid(row=0, column=1, sticky="nsew")
+        if name == "Overview":
+            self.overview_frame.grid(row=0, column=1, sticky="nsew")
         else:
-            self.dashboard_frame.grid_forget()
-        
-        if name == "User Stats":
-            self.user_stats_frame.grid(row=0, column=1, sticky="nsew")
-        else:
-            self.user_stats_frame.grid_forget()
+            self.overview_frame.grid_forget()
 
         if name == "Logs":
             self.logs_frame.grid(row=0, column=1, sticky="nsew")
@@ -302,7 +287,7 @@ class KaraokeMonitorApp(ctk.CTk):
             self.after(0, lambda: self.update_textbox(self.recent_perf_list, perf_text))
 
             # User Stats
-            if self.current_tab == "User Stats":
+            if self.current_tab == "Overview":
                 stats = await self.db_manager.get_user_stats()
                 self.after(0, lambda: self.update_user_table(stats))
 
