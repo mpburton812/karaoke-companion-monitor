@@ -129,3 +129,31 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error fetching upcoming songs: {e}")
             return []
+
+    async def get_user_details(self, username: str) -> Dict[str, List[str]]:
+        if not self.client:
+            await self.connect()
+
+        # Get user ID first
+        try:
+            user_res = await self.client.execute("SELECT id FROM users WHERE username = ?", [username])
+            if not user_res.rows:
+                return {"songs": [], "venues": [], "tags": []}
+            user_id = user_res.rows[0][0]
+
+            # Fetch Songs
+            songs_res = await self.client.execute("SELECT track_name || ' - ' || artist_name FROM songs WHERE user_id = ? ORDER BY track_name", [user_id])
+            songs = [row[0] for row in songs_res.rows]
+
+            # Fetch Venues
+            venues_res = await self.client.execute("SELECT name FROM locations WHERE user_id = ? ORDER BY name", [user_id])
+            venues = [row[0] for row in venues_res.rows]
+
+            # Fetch Tags
+            tags_res = await self.client.execute("SELECT name FROM tags WHERE user_id = ? ORDER BY name", [user_id])
+            tags = [row[0] for row in tags_res.rows]
+
+            return {"songs": songs, "venues": venues, "tags": tags}
+        except Exception as e:
+            print(f"Error fetching user details for {username}: {e}")
+            return {"songs": [], "venues": [], "tags": []}

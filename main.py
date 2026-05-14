@@ -163,6 +163,47 @@ class KaraokeMonitorApp(ctk.CTk):
         self.tree.column("tags", width=50)
 
         self.tree.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
+        self.tree.bind("<Double-1>", self.on_user_click)
+
+    def on_user_click(self, event):
+        item = self.tree.selection()[0]
+        username = self.tree.item(item, "values")[0]
+        self.async_handler.run(self.show_user_details(username))
+
+    async def show_user_details(self, username):
+        details = await self.db_manager.get_user_details(username)
+        self.after(0, lambda: self.open_details_window(username, details))
+
+    def open_details_window(self, username, details):
+        detail_window = ctk.CTkToplevel(self)
+        detail_window.title(f"Details: {username}")
+        detail_window.geometry("600x500")
+        detail_window.attributes("-topmost", True)
+
+        detail_window.grid_columnconfigure((0, 1, 2), weight=1)
+        detail_window.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(detail_window, text=f"User Details: {username}", font=ctk.CTkFont(size=18, weight="bold")).grid(row=0, column=0, columnspan=3, pady=10)
+
+        # Songs Column
+        ctk.CTkLabel(detail_window, text="Songs", font=ctk.CTkFont(weight="bold")).grid(row=1, column=0, sticky="n")
+        songs_box = ctk.CTkTextbox(detail_window, width=180)
+        songs_box.grid(row=2, column=0, padx=5, pady=5, sticky="nsew")
+        songs_box.insert("1.0", "\n".join(details["songs"]) if details["songs"] else "No songs.")
+
+        # Venues Column
+        ctk.CTkLabel(detail_window, text="Venues", font=ctk.CTkFont(weight="bold")).grid(row=1, column=1, sticky="n")
+        venues_box = ctk.CTkTextbox(detail_window, width=180)
+        venues_box.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
+        venues_box.insert("1.0", "\n".join(details["venues"]) if details["venues"] else "No venues.")
+
+        # Tags Column
+        ctk.CTkLabel(detail_window, text="Tags", font=ctk.CTkFont(weight="bold")).grid(row=1, column=2, sticky="n")
+        tags_box = ctk.CTkTextbox(detail_window, width=180)
+        tags_box.grid(row=2, column=2, padx=5, pady=5, sticky="nsew")
+        tags_box.insert("1.0", "\n".join(details["tags"]) if details["tags"] else "No tags.")
+
+        detail_window.grid_rowconfigure(2, weight=1)
 
     def setup_logs_ui(self):
         self.logs_frame.grid_columnconfigure(0, weight=1)
