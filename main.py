@@ -241,7 +241,8 @@ class KaraokeMonitorApp(ctk.CTk):
             self.after(0, lambda: tk.messagebox.showerror("Error", "Failed to update username."))
 
     def handle_delete(self, username, window):
-        if tk.messagebox.askconfirmed := tk.messagebox.askyesno("Confirm Delete", f"DANGER: Are you sure you want to delete user '{username}'? This will delete ALL their songs, performances, and data forever."):
+        confirmed = tk.messagebox.askyesno("Confirm Delete", f"DANGER: Are you sure you want to delete user '{username}'? This will delete ALL their songs, performances, and data forever.")
+        if confirmed:
             self.async_handler.run(self.perform_delete(username, window))
 
     async def perform_delete(self, username, window):
