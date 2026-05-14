@@ -2,6 +2,7 @@ import os
 import psutil
 import time
 import requests
+import re
 from typing import Dict, Any, List
 
 class MonitorEngine:
@@ -16,6 +17,7 @@ class MonitorEngine:
         self.render_service_id = os.getenv("RENDER_SERVICE_ID")
         self.render_owner_id = None
         self._last_render_log_time = None
+        self._ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     def get_system_metrics(self) -> Dict[str, float]:
         """Returns CPU and RAM usage percentages."""
@@ -69,7 +71,7 @@ class MonitorEngine:
 
     def _get_render_logs(self) -> List[str]:
         """Fetches logs from the Render API using the correct v1/logs endpoint."""
-        url = f"https://api.render.com/v1/logs"
+        url = "https://api.render.com/v1/logs"
         params = {
             "ownerId": self.render_owner_id,
             "resource": self.render_service_id,
@@ -84,18 +86,22 @@ class MonitorEngine:
         try:
             response = requests.get(url, headers=headers, params=params, timeout=5)
             if response.status_code == 200:
-                logs_data = response.json()
-                new_entries = []
+                data = response.json()
+                # The diagnostic script showed logs are inside a 'logs' key
+                logs_list = data.get("logs", []) if isinstance(data, dict) else []
                 
-                # Render v1/logs returns a list of log objects
-                # We want to show them in chronological order, so we reverse the 'backward' list
-                for entry in reversed(logs_data):
+                new_entries = []
+                # Process in chronological order (data is 'backward'/newest-first)
+                for entry in reversed(logs_list):
                     timestamp = entry.get("timestamp")
-                    text = entry.get("text", "").strip()
+                    # Field name is 'message', not 'text'
+                    text = entry.get("message", "").strip()
                     
                     if not self._last_render_log_time or timestamp > self._last_render_log_time:
                         if text:
-                            new_entries.append(f"[{timestamp}] {text}")
+                            # Strip ANSI color codes for a cleaner UI
+                            clean_text = self._ansi_escape.sub('', text)
+                            new_entries.append(f"[{timestamp}] {clean_text}")
                         self._last_render_log_time = timestamp
                 
                 return new_entries
@@ -103,6 +109,14 @@ class MonitorEngine:
                 return [f"Render API Error ({response.status_code}): {response.text}"]
         except Exception as e:
             return [f"Exception fetching Render logs: {e}"]
+
+    def set_log_file_path(self, path: str):
+        self.log_file_path = path
+        if path and os.path.exists(path):
+            self._last_log_position = os.path.getsize(path)
+        else:
+            self._last_log_position = 0
+
 
     def set_log_file_path(self, path: str):
         self.log_file_path = path
