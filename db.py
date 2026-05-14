@@ -11,6 +11,9 @@ load_dotenv()
 class DatabaseManager:
     def __init__(self):
         self.url = os.getenv("LIBSQL_URL")
+        # Ensure we use https if libsql:// is provided to avoid 505 protocol errors
+        if self.url and self.url.startswith("libsql://"):
+            self.url = self.url.replace("libsql://", "https://", 1)
         self.auth_token = os.getenv("LIBSQL_AUTH_TOKEN")
         self.client: Optional[libsql_client.Client] = None
 
