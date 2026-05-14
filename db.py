@@ -184,3 +184,44 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error deleting user {username}: {e}")
             return False
+
+    async def get_top_songs(self, limit: int = 10) -> List[Dict[str, Any]]:
+        if not self.client: await self.connect()
+        query = f"""
+        SELECT track_name, artist_name, COUNT(*) as count 
+        FROM performances p JOIN songs s ON p.song_id = s.id 
+        GROUP BY track_name, artist_name ORDER BY count DESC LIMIT {limit}
+        """
+        res = await self.client.execute(query)
+        return [dict(zip(res.columns, row)) for row in res.rows]
+
+    async def get_top_artists(self, limit: int = 10) -> List[Dict[str, Any]]:
+        if not self.client: await self.connect()
+        query = f"""
+        SELECT artist_name, COUNT(*) as count 
+        FROM performances p JOIN songs s ON p.song_id = s.id 
+        GROUP BY artist_name ORDER BY count DESC LIMIT {limit}
+        """
+        res = await self.client.execute(query)
+        return [dict(zip(res.columns, row)) for row in res.rows]
+
+    async def get_usage_patterns(self) -> List[Dict[str, Any]]:
+        if not self.client: await self.connect()
+        # Count performances by day of week
+        query = """
+        SELECT strftime('%w', date) as dow, COUNT(*) as count 
+        FROM performances GROUP BY dow ORDER BY dow
+        """
+        res = await self.client.execute(query)
+        days = { "0": "Sun", "1": "Mon", "2": "Tue", "3": "Wed", "4": "Thu", "5": "Fri", "6": "Sat" }
+        return [{"day": days.get(row[0], row[0]), "count": row[1]} for row in res.rows]
+
+    async def get_venue_stats(self) -> List[Dict[str, Any]]:
+        if not self.client: await self.connect()
+        query = """
+        SELECT location, COUNT(*) as perf_count, COUNT(DISTINCT user_id) as unique_users
+        FROM performances WHERE location != ''
+        GROUP BY location ORDER BY perf_count DESC
+        """
+        res = await self.client.execute(query)
+        return [dict(zip(res.columns, row)) for row in res.rows]
