@@ -14,6 +14,7 @@ class MonitorEngine:
         # Render API configuration
         self.render_api_key = os.getenv("RENDER_API_KEY")
         self.render_service_id = os.getenv("RENDER_SERVICE_ID")
+        self.render_owner_id = None
         self._last_render_log_time = None
 
     def get_system_metrics(self) -> Dict[str, float]:
@@ -23,10 +24,30 @@ class MonitorEngine:
             "ram_percent": psutil.virtual_memory().percent
         }
 
+    def _ensure_render_owner_id(self) -> bool:
+        """Fetches the ownerId for the service if not already known."""
+        if self.render_owner_id:
+            return True
+        
+        if not self.render_api_key or not self.render_service_id:
+            return False
+
+        try:
+            url = f"https://api.render.com/v1/services/{self.render_service_id}"
+            headers = {"Authorization": f"Bearer {self.render_api_key}"}
+            response = requests.get(url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                self.render_owner_id = response.json().get("ownerId")
+                return True
+        except Exception as e:
+            print(f"Error fetching Render ownerId: {e}")
+        return False
+
     def get_new_log_lines(self) -> List[str]:
         """Reads new lines from Render API or local log file."""
         if self.render_api_key and self.render_service_id:
-            return self._get_render_logs()
+            if self._ensure_render_owner_id():
+                return self._get_render_logs()
         
         if not self.log_file_path or not os.path.exists(self.log_file_path):
             return []
@@ -47,23 +68,28 @@ class MonitorEngine:
         return [line.strip() for line in new_lines if line.strip()]
 
     def _get_render_logs(self) -> List[str]:
-        """Fetches logs from the Render API."""
-        url = f"https://api.render.com/v1/services/{self.render_service_id}/logs"
+        """Fetches logs from the Render API using the correct v1/logs endpoint."""
+        url = f"https://api.render.com/v1/logs"
+        params = {
+            "ownerId": self.render_owner_id,
+            "resource": self.render_service_id,
+            "limit": 20,
+            "direction": "backward"
+        }
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {self.render_api_key}"
         }
         
         try:
-            # Render logs API returns a stream or a list of log objects
-            # For a static site, we fetch the most recent entries
-            response = requests.get(url, headers=headers, timeout=5)
+            response = requests.get(url, headers=headers, params=params, timeout=5)
             if response.status_code == 200:
                 logs_data = response.json()
                 new_entries = []
                 
-                # Render returns logs as a list of objects with 'timestamp' and 'text'
-                for entry in logs_data:
+                # Render v1/logs returns a list of log objects
+                # We want to show them in chronological order, so we reverse the 'backward' list
+                for entry in reversed(logs_data):
                     timestamp = entry.get("timestamp")
                     text = entry.get("text", "").strip()
                     
