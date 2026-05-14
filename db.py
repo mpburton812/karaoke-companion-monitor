@@ -157,3 +157,30 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error fetching user details for {username}: {e}")
             return {"songs": [], "venues": [], "tags": []}
+
+    async def update_username(self, old_username: str, new_username: str) -> bool:
+        if not self.client:
+            await self.connect()
+        try:
+            await self.client.execute("UPDATE users SET username = ? WHERE username = ?", [new_username, old_username])
+            return True
+        except Exception as e:
+            print(f"Error updating username from {old_username} to {new_username}: {e}")
+            return False
+
+    async def delete_user(self, username: str) -> bool:
+        if not self.client:
+            await self.connect()
+        try:
+            # First get the user ID
+            res = await self.client.execute("SELECT id FROM users WHERE username = ?", [username])
+            if not res.rows:
+                return False
+            user_id = res.rows[0][0]
+            
+            # The schema uses ON DELETE CASCADE, so deleting the user should clean up everything
+            await self.client.execute("DELETE FROM users WHERE id = ?", [user_id])
+            return True
+        except Exception as e:
+            print(f"Error deleting user {username}: {e}")
+            return False

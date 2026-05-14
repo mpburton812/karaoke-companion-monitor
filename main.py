@@ -177,33 +177,80 @@ class KaraokeMonitorApp(ctk.CTk):
     def open_details_window(self, username, details):
         detail_window = ctk.CTkToplevel(self)
         detail_window.title(f"Details: {username}")
-        detail_window.geometry("600x500")
+        detail_window.geometry("700x600")
         detail_window.attributes("-topmost", True)
 
         detail_window.grid_columnconfigure((0, 1, 2), weight=1)
-        detail_window.grid_rowconfigure(1, weight=1)
+        detail_window.grid_rowconfigure(2, weight=1)
 
-        ctk.CTkLabel(detail_window, text=f"User Details: {username}", font=ctk.CTkFont(size=18, weight="bold")).grid(row=0, column=0, columnspan=3, pady=10)
+        # Header with user management
+        header_frame = ctk.CTkFrame(detail_window, fg_color="transparent")
+        header_frame.grid(row=0, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
+        header_frame.grid_columnconfigure(1, weight=1)
 
+        ctk.CTkLabel(header_frame, text=f"User Details: {username}", font=ctk.CTkFont(size=18, weight="bold")).grid(row=0, column=0, padx=10)
+
+        # Rename Section
+        rename_frame = ctk.CTkFrame(header_frame)
+        rename_frame.grid(row=0, column=1, padx=10, sticky="e")
+        
+        self.new_name_entry = ctk.CTkEntry(rename_frame, placeholder_text="New Username")
+        self.new_name_entry.grid(row=0, column=0, padx=5, pady=5)
+        
+        rename_btn = ctk.CTkButton(rename_frame, text="Rename", width=60, 
+                                   command=lambda: self.handle_rename(username, self.new_name_entry.get(), detail_window))
+        rename_btn.grid(row=0, column=1, padx=5, pady=5)
+
+        # Delete Section
+        delete_btn = ctk.CTkButton(header_frame, text="Delete User", fg_color="red", hover_color="#8B0000", width=100,
+                                   command=lambda: self.handle_delete(username, detail_window))
+        delete_btn.grid(row=0, column=2, padx=10)
+
+        # Details Content
         # Songs Column
         ctk.CTkLabel(detail_window, text="Songs", font=ctk.CTkFont(weight="bold")).grid(row=1, column=0, sticky="n")
-        songs_box = ctk.CTkTextbox(detail_window, width=180)
+        songs_box = ctk.CTkTextbox(detail_window, width=220)
         songs_box.grid(row=2, column=0, padx=5, pady=5, sticky="nsew")
         songs_box.insert("1.0", "\n".join(details["songs"]) if details["songs"] else "No songs.")
 
         # Venues Column
         ctk.CTkLabel(detail_window, text="Venues", font=ctk.CTkFont(weight="bold")).grid(row=1, column=1, sticky="n")
-        venues_box = ctk.CTkTextbox(detail_window, width=180)
+        venues_box = ctk.CTkTextbox(detail_window, width=220)
         venues_box.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
         venues_box.insert("1.0", "\n".join(details["venues"]) if details["venues"] else "No venues.")
 
         # Tags Column
         ctk.CTkLabel(detail_window, text="Tags", font=ctk.CTkFont(weight="bold")).grid(row=1, column=2, sticky="n")
-        tags_box = ctk.CTkTextbox(detail_window, width=180)
+        tags_box = ctk.CTkTextbox(detail_window, width=220)
         tags_box.grid(row=2, column=2, padx=5, pady=5, sticky="nsew")
         tags_box.insert("1.0", "\n".join(details["tags"]) if details["tags"] else "No tags.")
 
-        detail_window.grid_rowconfigure(2, weight=1)
+    def handle_rename(self, old_name, new_name, window):
+        if not new_name or new_name.strip() == "":
+            return
+        
+        if tk.messagebox.askyesno("Confirm Rename", f"Are you sure you want to rename '{old_name}' to '{new_name}'?"):
+            self.async_handler.run(self.perform_rename(old_name, new_name, window))
+
+    async def perform_rename(self, old_name, new_name, window):
+        success = await self.db_manager.update_username(old_name, new_name)
+        if success:
+            self.after(0, lambda: window.destroy())
+            self.async_handler.run(self.update_db_info())
+        else:
+            self.after(0, lambda: tk.messagebox.showerror("Error", "Failed to update username."))
+
+    def handle_delete(self, username, window):
+        if tk.messagebox.askconfirmed := tk.messagebox.askyesno("Confirm Delete", f"DANGER: Are you sure you want to delete user '{username}'? This will delete ALL their songs, performances, and data forever."):
+            self.async_handler.run(self.perform_delete(username, window))
+
+    async def perform_delete(self, username, window):
+        success = await self.db_manager.delete_user(username)
+        if success:
+            self.after(0, lambda: window.destroy())
+            self.async_handler.run(self.update_db_info())
+        else:
+            self.after(0, lambda: tk.messagebox.showerror("Error", "Failed to delete user."))
 
     def setup_logs_ui(self):
         self.logs_frame.grid_columnconfigure(0, weight=1)
