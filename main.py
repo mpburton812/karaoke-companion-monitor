@@ -101,39 +101,15 @@ class KaraokeMonitorApp(ctk.CTk):
         self.select_frame("Dashboard")
 
     def setup_dashboard_ui(self):
-        self.dashboard_frame.grid_columnconfigure((0, 1), weight=1)
-        self.dashboard_frame.grid_rowconfigure(2, weight=1)
-
-        # Resource Bars
-        self.resource_frame = ctk.CTkFrame(self.dashboard_frame)
-        self.resource_frame.grid(row=0, column=0, columnspan=2, padx=20, pady=20, sticky="nsew")
-        self.resource_frame.grid_columnconfigure((0, 1), weight=1)
-
-        self.cpu_label = ctk.CTkLabel(self.resource_frame, text="CPU Usage: 0%")
-        self.cpu_label.grid(row=0, column=0, padx=20, pady=(10, 0))
-        self.cpu_progress = ctk.CTkProgressBar(self.resource_frame)
-        self.cpu_progress.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="ew")
-        self.cpu_progress.set(0)
-
-        self.ram_label = ctk.CTkLabel(self.resource_frame, text="RAM Usage: 0%")
-        self.ram_label.grid(row=0, column=1, padx=20, pady=(10, 0))
-        self.ram_progress = ctk.CTkProgressBar(self.resource_frame)
-        self.ram_progress.grid(row=1, column=1, padx=20, pady=(0, 10), sticky="ew")
-        self.ram_progress.set(0)
+        self.dashboard_frame.grid_columnconfigure(0, weight=1)
+        self.dashboard_frame.grid_rowconfigure(1, weight=1)
 
         # Recent Performances
         self.recent_perf_label = ctk.CTkLabel(self.dashboard_frame, text="Recent Performances", font=ctk.CTkFont(size=16, weight="bold"))
-        self.recent_perf_label.grid(row=1, column=0, padx=20, pady=(10, 0), sticky="w")
+        self.recent_perf_label.grid(row=0, column=0, padx=20, pady=(20, 0), sticky="w")
 
-        self.recent_perf_list = ctk.CTkTextbox(self.dashboard_frame, height=200)
-        self.recent_perf_list.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
-
-        # Upcoming Songs
-        self.upcoming_songs_label = ctk.CTkLabel(self.dashboard_frame, text="Upcoming Songs (from Setlists)", font=ctk.CTkFont(size=16, weight="bold"))
-        self.upcoming_songs_label.grid(row=1, column=1, padx=20, pady=(10, 0), sticky="w")
-
-        self.upcoming_songs_list = ctk.CTkTextbox(self.dashboard_frame, height=200)
-        self.upcoming_songs_list.grid(row=2, column=1, padx=20, pady=10, sticky="nsew")
+        self.recent_perf_list = ctk.CTkTextbox(self.dashboard_frame)
+        self.recent_perf_list.grid(row=1, column=0, padx=20, pady=10, sticky="nsew")
 
     def setup_user_stats_ui(self):
         self.user_stats_frame.grid_columnconfigure(0, weight=1)
@@ -290,14 +266,7 @@ class KaraokeMonitorApp(ctk.CTk):
         ctk.set_appearance_mode(new_appearance_mode)
 
     def poll_updates(self):
-        """Polls for system metrics and log updates (runs on UI thread)."""
-        metrics = self.monitor_engine.get_system_metrics()
-        self.cpu_label.configure(text=f"CPU Usage: {metrics['cpu_percent']}%")
-        self.cpu_progress.set(metrics['cpu_percent'] / 100)
-        
-        self.ram_label.configure(text=f"RAM Usage: {metrics['ram_percent']}%")
-        self.ram_progress.set(metrics['ram_percent'] / 100)
-
+        """Polls for log updates (runs on UI thread)."""
         new_logs = self.monitor_engine.get_new_log_lines()
         if new_logs:
             self.logs_textbox.insert("end", "\n".join(new_logs) + "\n")
@@ -331,14 +300,6 @@ class KaraokeMonitorApp(ctk.CTk):
                 perf_text += f"[{p['date']} {p['time']}] {p['username']} - {p['track_name']} @ {p['location']} (Rating: {p['rating']})\n"
             
             self.after(0, lambda: self.update_textbox(self.recent_perf_list, perf_text))
-
-            # Upcoming Songs
-            upcoming = await self.db_manager.get_upcoming_songs()
-            upcoming_text = ""
-            for u in upcoming:
-                upcoming_text += f"{u['username']}: {u['track_name']} by {u['artist_name']} ({u['setlist_name']})\n"
-            
-            self.after(0, lambda: self.update_textbox(self.upcoming_songs_list, upcoming_text))
 
             # User Stats
             if self.current_tab == "User Stats":
