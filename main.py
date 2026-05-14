@@ -53,9 +53,10 @@ class KaraokeMonitorApp(ctk.CTk):
         self.setup_sidebar()
         self.setup_main_frames()
         
-        # Start polling
-        self.poll_updates()
-        self.poll_db_updates()
+        # Start polling loops
+        self.poll_updates()         # System/Logs (2s)
+        self.poll_db_health()       # DB Health Status (10s)
+        self.poll_db_data()         # DB Performance/Stats (5 mins)
 
     def setup_sidebar(self):
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
@@ -251,7 +252,7 @@ class KaraokeMonitorApp(ctk.CTk):
         ctk.set_appearance_mode(new_appearance_mode)
 
     def poll_updates(self):
-        """Polls for log updates (runs on UI thread)."""
+        """Polls for log updates (runs on UI thread every 2s)."""
         new_logs = self.monitor_engine.get_new_log_lines()
         if new_logs:
             self.logs_textbox.insert("end", "\n".join(new_logs) + "\n")
@@ -259,13 +260,17 @@ class KaraokeMonitorApp(ctk.CTk):
 
         self.after(2000, self.poll_updates)
 
-    def poll_db_updates(self):
-        """Polls for database updates (dispatches to async thread)."""
-        self.async_handler.run(self.update_db_info())
-        interval = int(os.getenv("POLLING_INTERVAL_SECONDS", 5)) * 1000
-        self.after(interval, self.poll_db_updates)
+    def poll_db_health(self):
+        """Polls for database connectivity status every 10 seconds."""
+        self.async_handler.run(self.update_db_health())
+        self.after(10000, self.poll_db_health)
 
-    async def update_db_info(self):
+    def poll_db_data(self):
+        """Polls for database data (Recent Perf/User Stats) every 5 minutes."""
+        self.async_handler.run(self.update_db_info())
+        self.after(300000, self.poll_db_data)
+
+    async def update_db_health(self):
         # Health Check
         health = await self.db_manager.check_health()
         status_text = f"DB: {health['status']}"
@@ -277,19 +282,49 @@ class KaraokeMonitorApp(ctk.CTk):
         
         self.after(0, lambda: self.db_status_label.configure(text=status_text, text_color=color))
 
-        if health['status'] == "Online":
-            # Recent Performances
-            perfs = await self.db_manager.get_recent_performances()
-            perf_text = ""
-            for p in perfs:
-                perf_text += f"[{p['date']} {p['time']}] {p['username']} - {p['track_name']} @ {p['location']} (Rating: {p['rating']})\n"
-            
-            self.after(0, lambda: self.update_textbox(self.recent_perf_list, perf_text))
+    async def update_db_info(self):
+        # Only fetch data if DB is online
+        health = await self.db_manager.check_health()
+        if health['status'] != "Online":
+            return
 
-            # User Stats
-            if self.current_tab == "Overview":
-                stats = await self.db_manager.get_user_stats()
-                self.after(0, lambda: self.update_user_table(stats))
+        # Recent Performances
+        perfs = await self.db_manager.get_recent_performances()
+        perf_text = ""
+        for p in perfs:
+            perf_text += f"[{p['date']} {p['time']}] {p['username']} - {p['track_name']} @ {p['location']} (Rating: {p['rating']})\n"
+        
+        self.after(0, lambda: self.update_textbox(self.recent_perf_list, perf_text))
+
+        # User Stats
+        if self.current_tab == "Overview":
+            stats = await self.db_manager.get_user_stats()
+            self.after(0, lambda: self.update_user_table(stats))
+
+    def update_textbox(self, textbox, content):
+        textbox.delete("1.0", "end")
+        textbox.insert("1.0", content)
+
+    def update_user_table(self, stats):
+        # Clear existing
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        for s in stats:
+            self.tree.insert("", "end", values=(
+                s.get("username", ""),
+                s.get("created_approx", "N/A"),
+                s.get("last_used_approx", "N/A"),
+                s.get("total_uses", 0),
+                s.get("songs_count", 0),
+                s.get("venues_count", 0),
+                s.get("tags_count", 0)
+            ))
+
+if __name__ == "__main__":
+    app = KaraokeMonitorApp()
+    app.mainloop()
+
 
     def update_textbox(self, textbox, content):
         textbox.delete("1.0", "end")
